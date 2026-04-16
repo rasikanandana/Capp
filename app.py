@@ -392,16 +392,19 @@ Compared with driving:
 """
         )
 
+        
         st.subheader("📊 Monthly savings")
-        st.markdown(
-            f"""
+st.markdown(
+    f"""
+Compared with driving:
 
-
-        st.subheader("🚲 Monthly bicycle vs driving")
-        st.markdown(
-            f"""
-- 🌱 **CO₂ reduction:** {bicycle_monthly_co2_saved:.1f} kg/month  
-- 💰 **Cost difference:** ${abs(bicycle_monthly_cost_diff):.2f} ({'saving' if bicycle_monthly_cost_diff > 0 else 'extra cost'})  
+- 🌱 **CO₂ reduction:** {monthly_co2_saved:.1f} kg/month  
+- 💰 **Cost difference:** ${abs(monthly_cost_diff):.2f} ({'saving' if monthly_cost_diff > 0 else 'extra cost'})  
+"""
+)
+        
+        
+       
 
 🌳 That’s like **~{trees_bicycle_month:.0f} trees working for a month** to absorb the same CO₂
 """
