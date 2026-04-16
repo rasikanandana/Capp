@@ -368,11 +368,22 @@ if compare_clicked:
         bicycle_monthly_co2_saved = bicycle_daily_co2_saved * trips_per_month
         bicycle_monthly_cost_diff = bicycle_daily_cost_diff * trips_per_month
 
+    # Tree equivalent based on ~21 kg CO2 per year per tree = ~1.75 kg/month
+    trees_bicycle_month = bicycle_monthly_co2_saved / 1.75 if bicycle_monthly_co2_saved > 0 else 0
+
     left_col, right_col = st.columns([1.05, 1])
 
     with left_col:
         st.subheader("📅 Daily savings")
-     
+        st.markdown(
+            f"""
+Compared with driving:
+
+- 🌱 **CO₂ reduction:** {daily_co2_saved:.3f} kg/trip  
+- 💰 **Cost difference:** ${abs(daily_cost_diff):.2f} ({'saving' if daily_cost_diff > 0 else 'extra cost'})  
+"""
+        )
+
         st.subheader("🚲 Compared bicycle with driving")
         st.markdown(
             f"""
@@ -382,23 +393,25 @@ if compare_clicked:
         )
 
         st.subheader("📊 Monthly savings")
+        st.markdown(
+            f"""
+Compared with driving:
 
+- 🌱 **CO₂ reduction:** {monthly_co2_saved:.1f} kg/month  
+- 💰 **Cost difference:** ${abs(monthly_cost_diff):.2f} ({'saving' if monthly_cost_diff > 0 else 'extra cost'})  
+"""
+        )
 
-# 🌳 Tree equivalent calculation
-trees = bicycle_monthly_co2_saved / 1.75 if bicycle_monthly_co2_saved > 0 else 0
-
-st.subheader("🚲 Monthly bicycle vs driving")
-st.markdown(
-    f"""
+        st.subheader("🚲 Monthly bicycle vs driving")
+        st.markdown(
+            f"""
 - 🌱 **CO₂ reduction:** {bicycle_monthly_co2_saved:.1f} kg/month  
 - 💰 **Cost difference:** ${abs(bicycle_monthly_cost_diff):.2f} ({'saving' if bicycle_monthly_cost_diff > 0 else 'extra cost'})  
 
-🌳 That’s like **~{trees:.0f} trees working for a month** to absorb the same CO₂
+🌳 That’s like **~{trees_bicycle_month:.0f} trees working for a month** to absorb the same CO₂
 """
-)
-
-st.caption("Tree equivalent based on ~21 kg CO₂ absorbed per tree per year (approximate).")
-
+        )
+        st.caption("Tree equivalent based on ~21 kg CO₂ absorbed per tree per year (approximate).")
 
         st.info("You can also add how you travel today in this app.")
 
