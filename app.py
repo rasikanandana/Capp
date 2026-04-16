@@ -221,7 +221,7 @@ def make_marker_layer(marker_df: pd.DataFrame):
 
 
 st.markdown("## 🚗 NZ Transport Cost + CO₂")
-st.caption("Compare cost, travel time, CO₂, route map, and monthly savings for a trip in New Zealand.")
+st.caption("Compare cost, travel time, CO₂, route map, and savings for a trip in New Zealand.")
 
 if not API_KEY:
     st.error("Google API key not found. Add GOOGLE_MAPS_API_KEY to Streamlit secrets.")
@@ -337,50 +337,44 @@ if compare_clicked:
     df = pd.DataFrame(results).sort_values(by=["CO₂ (kg)", "Time (min)"]).reset_index(drop=True)
 
     best = df.iloc[0]
-    best_mode = best["Mode"]
-    best_icon = MODE_ICONS.get(best_mode, "🚉")
-
     car_rows = df[df["Mode"] == "Car"]
     car_row = car_rows.iloc[0] if not car_rows.empty else None
 
-    monthly_cost = best["Cost ($)"] * trips_per_month
-    monthly_co2 = best["CO₂ (kg)"] * trips_per_month
+    daily_co2_saved = 0.0
+    daily_cost_diff = 0.0
+    monthly_co2_saved = 0.0
+    monthly_cost_diff = 0.0
 
     if car_row is not None:
-        best_monthly_co2_saved = max(0, (car_row["CO₂ (kg)"] - best["CO₂ (kg)"]) * trips_per_month)
-        best_monthly_cost_diff = (car_row["Cost ($)"] - best["Cost ($)"]) * trips_per_month
-    else:
-        best_monthly_co2_saved = 0
-        best_monthly_cost_diff = 0
+        daily_co2_saved = max(0, car_row["CO₂ (kg)"] - best["CO₂ (kg)"])
+        daily_cost_diff = car_row["Cost ($)"] - best["Cost ($)"]
+        monthly_co2_saved = daily_co2_saved * trips_per_month
+        monthly_cost_diff = daily_cost_diff * trips_per_month
 
     left_col, right_col = st.columns([1.05, 1])
 
     with left_col:
-        st.subheader("📅 Daily summary")
+        st.subheader("📅 Daily savings")
         st.markdown(
             f"""
-**Best option: {best_icon} {best_mode}**
+Compared with driving:
 
-- ⏱ **Time:** {best['Time (min)']} min  
-- 💰 **Cost:** ${best['Cost ($)']:.2f} per trip  
-- 🌱 **CO₂:** {best['CO₂ (kg)']:.3f} kg per trip  
+- 🌱 **CO₂ reduction:** {daily_co2_saved:.3f} kg/trip  
+- 💰 **Cost difference:** ${abs(daily_cost_diff):.2f} ({'saving' if daily_cost_diff > 0 else 'extra cost'})  
 """
         )
 
-        st.subheader("📊 Monthly summary")
-
-        cost_text = "saving" if best_monthly_cost_diff > 0 else "extra cost"
-
+        st.subheader("📊 Monthly savings")
         st.markdown(
             f"""
-- 💰 **Monthly cost:** ${monthly_cost:.2f}  
-- 🌱 **Monthly CO₂:** {monthly_co2:.1f} kg  
+Compared with driving:
 
-**Compared with driving:**
-- 🌱 **CO₂ reduction:** {best_monthly_co2_saved:.1f} kg/month  
-- 💰 **Cost difference:** ${abs(best_monthly_cost_diff):.2f} ({cost_text})  
+- 🌱 **CO₂ reduction:** {monthly_co2_saved:.1f} kg/month  
+- 💰 **Cost difference:** ${abs(monthly_cost_diff):.2f} ({'saving' if monthly_cost_diff > 0 else 'extra cost'})  
 """
         )
+
+        st.info("You can also add how you travel today in this app.")
 
         st.subheader("Detailed comparison")
         st.dataframe(df, use_container_width=True, hide_index=True)
