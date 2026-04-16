@@ -399,15 +399,6 @@ if compare_clicked:
         st.success(f"Best option: {best['Mode']} — lowest CO₂ with strong overall efficiency for this trip.")
 
         st.subheader("📅 Daily savings")
-        st.markdown(
-            f"""
-Compared with driving:
-
-- 🌱 **CO₂ reduction:** {daily_co2_saved:.3f} kg/trip (**{co2_reduction_pct:.0f}% less than driving**)  
-- 💰 **Cost difference:** ${abs(daily_cost_diff):.2f} ({'saving' if daily_cost_diff > 0 else 'extra cost'})  
-"""
-        )
-
         st.subheader("🚲 Compared bicycle with driving")
         st.markdown(
             f"""
@@ -417,15 +408,6 @@ Compared with driving:
         )
 
         st.subheader("📊 Monthly savings")
-        st.markdown(
-            f"""
-Compared with driving:
-
-- 🌱 **CO₂ reduction:** {monthly_co2_saved:.1f} kg/month  
-- 💰 **Cost difference:** ${abs(monthly_cost_diff):.2f} ({'saving' if monthly_cost_diff > 0 else 'extra cost'})  
-"""
-        )
-
         st.subheader("🚲 Monthly bicycle vs driving")
         st.markdown(
             f"""
