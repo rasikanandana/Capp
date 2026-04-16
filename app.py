@@ -147,8 +147,22 @@ def compute_route(origin: dict, dest: dict, mode: str):
     }
 
     body = {
-        "origin": {"location": {"latLng": origin}},
-        "destination": {"location": {"latLng": dest}},
+        "origin": {
+            "location": {
+                "latLng": {
+                    "latitude": origin["latitude"],
+                    "longitude": origin["longitude"],
+                }
+            }
+        },
+        "destination": {
+            "location": {
+                "latLng": {
+                    "latitude": dest["latitude"],
+                    "longitude": dest["longitude"],
+                }
+            }
+        },
         "travelMode": mode,
         "units": "METRIC",
     }
@@ -223,6 +237,7 @@ def make_marker_layer(marker_df: pd.DataFrame):
 st.markdown("## 🚗 NZ Transport Cost + CO₂")
 st.caption("Compare cost, travel time, CO₂, route map, and savings for a trip in New Zealand.")
 st.caption("Transit means public transport combined (bus + train).")
+st.info("Designed as a quick decision-support MVP for individuals and councils to compare transport cost and emissions.")
 
 if not API_KEY:
     st.error("Google API key not found. Add GOOGLE_MAPS_API_KEY to Streamlit secrets.")
@@ -294,6 +309,7 @@ if compare_clicked:
             route_data = compute_route(origin, destination, google_mode)
 
             if "error" in route_data:
+                st.warning(f"{label} route unavailable: {route_data['error']}")
                 continue
 
             distance_km = route_data["distance_km"]
@@ -350,23 +366,29 @@ if compare_clicked:
     daily_cost_diff = 0.0
     monthly_co2_saved = 0.0
     monthly_cost_diff = 0.0
+    co2_reduction_pct = 0.0
 
     bicycle_daily_co2_saved = 0.0
     bicycle_daily_cost_diff = 0.0
     bicycle_monthly_co2_saved = 0.0
     bicycle_monthly_cost_diff = 0.0
+    bicycle_co2_reduction_pct = 0.0
 
     if car_row is not None:
         daily_co2_saved = max(0, car_row["CO₂ (kg)"] - best["CO₂ (kg)"])
         daily_cost_diff = car_row["Cost ($)"] - best["Cost ($)"]
         monthly_co2_saved = daily_co2_saved * trips_per_month
         monthly_cost_diff = daily_cost_diff * trips_per_month
+        if car_row["CO₂ (kg)"] > 0:
+            co2_reduction_pct = (daily_co2_saved / car_row["CO₂ (kg)"]) * 100
 
     if car_row is not None and bicycle_row is not None:
         bicycle_daily_co2_saved = max(0, car_row["CO₂ (kg)"] - bicycle_row["CO₂ (kg)"])
         bicycle_daily_cost_diff = car_row["Cost ($)"] - bicycle_row["Cost ($)"]
         bicycle_monthly_co2_saved = bicycle_daily_co2_saved * trips_per_month
         bicycle_monthly_cost_diff = bicycle_daily_cost_diff * trips_per_month
+        if car_row["CO₂ (kg)"] > 0:
+            bicycle_co2_reduction_pct = (bicycle_daily_co2_saved / car_row["CO₂ (kg)"]) * 100
 
     # Tree equivalent based on ~21 kg CO2 per year per tree = ~1.75 kg/month
     trees_bicycle_month = bicycle_monthly_co2_saved / 1.75 if bicycle_monthly_co2_saved > 0 else 0
@@ -374,12 +396,14 @@ if compare_clicked:
     left_col, right_col = st.columns([1.05, 1])
 
     with left_col:
+        st.success(f"Best option: {best['Mode']} — lowest CO₂ with strong overall efficiency for this trip.")
+
         st.subheader("📅 Daily savings")
         st.markdown(
             f"""
 Compared with driving:
 
-- 🌱 **CO₂ reduction:** {daily_co2_saved:.3f} kg/trip  
+- 🌱 **CO₂ reduction:** {daily_co2_saved:.3f} kg/trip (**{co2_reduction_pct:.0f}% less than driving**)  
 - 💰 **Cost difference:** ${abs(daily_cost_diff):.2f} ({'saving' if daily_cost_diff > 0 else 'extra cost'})  
 """
         )
@@ -387,26 +411,33 @@ Compared with driving:
         st.subheader("🚲 Compared bicycle with driving")
         st.markdown(
             f"""
-- 🌱 **CO₂ reduction:** {bicycle_daily_co2_saved:.3f} kg/trip  
+- 🌱 **CO₂ reduction:** {bicycle_daily_co2_saved:.3f} kg/trip (**{bicycle_co2_reduction_pct:.0f}% less than driving**)  
 - 💰 **Cost difference:** ${abs(bicycle_daily_cost_diff):.2f} ({'saving' if bicycle_daily_cost_diff > 0 else 'extra cost'})  
 """
         )
 
-        
         st.subheader("📊 Monthly savings")
-st.markdown(
-    f"""
+        st.markdown(
+            f"""
 Compared with driving:
 
 - 🌱 **CO₂ reduction:** {monthly_co2_saved:.1f} kg/month  
 - 💰 **Cost difference:** ${abs(monthly_cost_diff):.2f} ({'saving' if monthly_cost_diff > 0 else 'extra cost'})  
+"""
+        )
+
+        st.subheader("🚲 Monthly bicycle vs driving")
+        st.markdown(
+            f"""
+- 🌱 **CO₂ reduction:** {bicycle_monthly_co2_saved:.1f} kg/month  
+- 💰 **Cost difference:** ${abs(bicycle_monthly_cost_diff):.2f} ({'saving' if bicycle_monthly_cost_diff > 0 else 'extra cost'})  
 
 🌳 That’s like **~{trees_bicycle_month:.0f} trees working for a month** to absorb the same CO₂
 """
         )
         st.caption("Tree equivalent based on ~21 kg CO₂ absorbed per tree per year (approximate).")
 
-        st.info("You can also add how you travel today in this app.")
+        st.info("Future version: users could set their current travel mode and compare against alternative options.")
 
         st.subheader("Detailed comparison")
         display_df = df.drop(columns=["ModeKey"])
@@ -461,7 +492,7 @@ Compared with driving:
             st.warning("Map route not available for this trip.")
 
         if car_row is not None:
-            st.subheader("Monthly savings snapshot")
+            st.subheader("Monthly summary")
 
             monthly_rows = []
             for _, row in df.iterrows():
@@ -513,4 +544,4 @@ This is a **simple MVP** for quick comparison.
 )
 
 st.markdown("---")
-st.caption("Rasika Nandana © | ver1.0 | 2026.04.16")
+st.caption("Rasika Nandana | MVP v1.0 | Apr 2026")
