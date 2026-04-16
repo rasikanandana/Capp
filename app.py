@@ -401,11 +401,7 @@ Compared with driving:
 - 🌱 **CO₂ reduction:** {monthly_co2_saved:.1f} kg/month  
 - 💰 **Cost difference:** ${abs(monthly_cost_diff):.2f} ({'saving' if monthly_cost_diff > 0 else 'extra cost'})  
 """
-)
-        
-        
-       
-
+ 
 🌳 That’s like **~{trees_bicycle_month:.0f} trees working for a month** to absorb the same CO₂
 """
         )
