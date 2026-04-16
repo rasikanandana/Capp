@@ -13,25 +13,25 @@ API_KEY = st.secrets.get("GOOGLE_MAPS_API_KEY", "")
 
 # NZ-based / MVP emission factors
 EMISSION = {
-    "Car": 0.128,      # Toyota Aqua hybrid approx
-    "Transit": 0.05,   # blended transit estimate for MVP
-    "Train": 0.0148,   # electric rail NZ
-    "Bus": 0.155,      # average NZ bus
-    "Bike": 0.0,
+    "Car": 0.128,        # Toyota Aqua hybrid approx
+    "Transit": 0.05,     # bus + train combined estimate for MVP
+    "Train": 0.0148,     # electric rail NZ
+    "Bus": 0.155,        # average NZ bus
+    "Bicycle": 0.0,
     "E-bike": 0.0006,
 }
 
 ROUTE_COLORS = {
     "Car": [220, 53, 69],
     "Transit": [13, 110, 253],
-    "Bike": [40, 167, 69],
+    "Bicycle": [40, 167, 69],
     "E-bike": [255, 153, 0],
 }
 
 MODE_ICONS = {
     "Car": "🚗",
     "Transit": "🚆",
-    "Bike": "🚲",
+    "Bicycle": "🚲",
     "E-bike": "⚡",
 }
 
@@ -41,7 +41,7 @@ def cost(distance_km: float, mode: str) -> float:
         return round(distance_km * 0.25, 2)
     if mode == "Transit":
         return round(distance_km * 0.35, 2)
-    if mode == "Bike":
+    if mode == "Bicycle":
         return 0.0
     if mode == "E-bike":
         return round(distance_km * 0.003, 2)
@@ -222,6 +222,7 @@ def make_marker_layer(marker_df: pd.DataFrame):
 
 st.markdown("## 🚗 NZ Transport Cost + CO₂")
 st.caption("Compare cost, travel time, CO₂, route map, and savings for a trip in New Zealand.")
+st.caption("Transit means public transport combined (bus + train).")
 
 if not API_KEY:
     st.error("Google API key not found. Add GOOGLE_MAPS_API_KEY to Streamlit secrets.")
@@ -282,7 +283,7 @@ if compare_clicked:
     mode_map = {
         "Car": "DRIVE",
         "Transit": "TRANSIT",
-        "Bike": "BICYCLE",
+        "Bicycle": "BICYCLE",
     }
 
     results = []
@@ -300,7 +301,8 @@ if compare_clicked:
             polyline_points = route_data["polyline_points"]
 
             results.append({
-                "Mode": label,
+                "Mode": f"{MODE_ICONS.get(label, '')} {label}",
+                "ModeKey": label,
                 "Distance (km)": round(distance_km, 1),
                 "Time (min)": duration_min,
                 "Cost ($)": cost(distance_km, label),
@@ -314,9 +316,10 @@ if compare_clicked:
                     "color": ROUTE_COLORS[label],
                 })
 
-            if label == "Bike":
+            if label == "Bicycle":
                 results.append({
-                    "Mode": "E-bike",
+                    "Mode": f"{MODE_ICONS.get('E-bike', '')} E-bike",
+                    "ModeKey": "E-bike",
                     "Distance (km)": round(distance_km, 1),
                     "Time (min)": max(1, int(duration_min * 0.75)),
                     "Cost ($)": cost(distance_km, "E-bike"),
@@ -337,19 +340,33 @@ if compare_clicked:
     df = pd.DataFrame(results).sort_values(by=["CO₂ (kg)", "Time (min)"]).reset_index(drop=True)
 
     best = df.iloc[0]
-    car_rows = df[df["Mode"] == "Car"]
+    car_rows = df[df["ModeKey"] == "Car"]
+    bicycle_rows = df[df["ModeKey"] == "Bicycle"]
+
     car_row = car_rows.iloc[0] if not car_rows.empty else None
+    bicycle_row = bicycle_rows.iloc[0] if not bicycle_rows.empty else None
 
     daily_co2_saved = 0.0
     daily_cost_diff = 0.0
     monthly_co2_saved = 0.0
     monthly_cost_diff = 0.0
 
+    bicycle_daily_co2_saved = 0.0
+    bicycle_daily_cost_diff = 0.0
+    bicycle_monthly_co2_saved = 0.0
+    bicycle_monthly_cost_diff = 0.0
+
     if car_row is not None:
         daily_co2_saved = max(0, car_row["CO₂ (kg)"] - best["CO₂ (kg)"])
         daily_cost_diff = car_row["Cost ($)"] - best["Cost ($)"]
         monthly_co2_saved = daily_co2_saved * trips_per_month
         monthly_cost_diff = daily_cost_diff * trips_per_month
+
+    if car_row is not None and bicycle_row is not None:
+        bicycle_daily_co2_saved = max(0, car_row["CO₂ (kg)"] - bicycle_row["CO₂ (kg)"])
+        bicycle_daily_cost_diff = car_row["Cost ($)"] - bicycle_row["Cost ($)"]
+        bicycle_monthly_co2_saved = bicycle_daily_co2_saved * trips_per_month
+        bicycle_monthly_cost_diff = bicycle_daily_cost_diff * trips_per_month
 
     left_col, right_col = st.columns([1.05, 1])
 
@@ -364,6 +381,14 @@ Compared with driving:
 """
         )
 
+        st.subheader("🚲 Compared bicycle with driving")
+        st.markdown(
+            f"""
+- 🌱 **CO₂ reduction:** {bicycle_daily_co2_saved:.3f} kg/trip  
+- 💰 **Cost difference:** ${abs(bicycle_daily_cost_diff):.2f} ({'saving' if bicycle_daily_cost_diff > 0 else 'extra cost'})  
+"""
+        )
+
         st.subheader("📊 Monthly savings")
         st.markdown(
             f"""
@@ -374,10 +399,19 @@ Compared with driving:
 """
         )
 
+        st.subheader("🚲 Monthly bicycle vs driving")
+        st.markdown(
+            f"""
+- 🌱 **CO₂ reduction:** {bicycle_monthly_co2_saved:.1f} kg/month  
+- 💰 **Cost difference:** ${abs(bicycle_monthly_cost_diff):.2f} ({'saving' if bicycle_monthly_cost_diff > 0 else 'extra cost'})  
+"""
+        )
+
         st.info("You can also add how you travel today in this app.")
 
         st.subheader("Detailed comparison")
-        st.dataframe(df, use_container_width=True, hide_index=True)
+        display_df = df.drop(columns=["ModeKey"])
+        st.dataframe(display_df, use_container_width=True, hide_index=True)
 
     with right_col:
         st.subheader("Map")
@@ -419,8 +453,8 @@ Compared with driving:
                 """
 **Route colors**
 - Red: Car  
-- Blue: Transit  
-- Green: Bike  
+- Blue: Transit (bus + train)  
+- Green: Bicycle  
 - Orange: E-bike
 """
             )
@@ -454,6 +488,7 @@ This is a **simple MVP** for quick comparison.
 
 - Uses Google Maps for distance and time
 - Cost and CO₂ are **estimated using NZ averages**
+- **Transit means public transport combined (bus + train)**
 
 ### 📊 Emission assumptions (NZ-based)
 
@@ -477,3 +512,6 @@ This is a **simple MVP** for quick comparison.
 - Route optimisation: fastest vs lowest carbon
 """
 )
+
+st.markdown("---")
+st.caption("Rasika Nandana © | ver1.0 | 2026.04.16")
