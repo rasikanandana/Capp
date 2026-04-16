@@ -220,151 +220,8 @@ def make_marker_layer(marker_df: pd.DataFrame):
     )
 
 
-def render_mode_card(row, best_mode, car_row, trips_per_month):
-    mode = row["Mode"]
-    icon = MODE_ICONS.get(mode, "🚉")
-
-    monthly_cost = row["Cost ($)"] * trips_per_month
-    monthly_co2 = row["CO₂ (kg)"] * trips_per_month
-
-    if car_row is not None and mode != "Car":
-        monthly_co2_saved = max(0, (car_row["CO₂ (kg)"] - row["CO₂ (kg)"]) * trips_per_month)
-        monthly_cost_diff = (car_row["Cost ($)"] - row["Cost ($)"]) * trips_per_month
-    else:
-        monthly_co2_saved = 0
-        monthly_cost_diff = 0
-
-    badge = ""
-    if mode == best_mode:
-        badge = '<div class="mode-badge">Lowest CO₂</div>'
-
-    savings_text = ""
-    if mode != "Car" and car_row is not None:
-        cost_word = "save" if monthly_cost_diff > 0 else "spend"
-        savings_text = f"""
-        <div class="small-note">
-            Monthly vs car: <b>{monthly_co2_saved:.1f} kg CO₂ less</b><br>
-            You {cost_word} about <b>${abs(monthly_cost_diff):.2f}</b> per month
-        </div>
-        """
-
-    return f"""
-    <div class="mode-card">
-        {badge}
-        <div class="mode-title">{icon} {mode}</div>
-        <div class="metric-row">
-            <div class="metric-box">
-                <div class="metric-label">Time</div>
-                <div class="metric-value">{int(row["Time (min)"])} min</div>
-            </div>
-            <div class="metric-box">
-                <div class="metric-label">Cost / trip</div>
-                <div class="metric-value">${row["Cost ($)"]:.2f}</div>
-            </div>
-        </div>
-        <div class="metric-row">
-            <div class="metric-box">
-                <div class="metric-label">CO₂ / trip</div>
-                <div class="metric-value">{row["CO₂ (kg)"]:.3f} kg</div>
-            </div>
-            <div class="metric-box">
-                <div class="metric-label">Monthly CO₂</div>
-                <div class="metric-value">{monthly_co2:.1f} kg</div>
-            </div>
-        </div>
-        <div class="small-note">
-            Monthly cost: <b>${monthly_cost:.2f}</b>
-        </div>
-        {savings_text}
-    </div>
-    """
-
-
-st.markdown(
-    """
-    <style>
-    .main-title {
-        font-size: 2.2rem;
-        font-weight: 800;
-        margin-bottom: 0.2rem;
-    }
-    .sub-title {
-        color: #666;
-        margin-bottom: 1.2rem;
-    }
-    .mode-card {
-        background: white;
-        border-radius: 18px;
-        padding: 18px 18px 16px 18px;
-        box-shadow: 0 4px 18px rgba(0,0,0,0.08);
-        border: 1px solid rgba(0,0,0,0.06);
-        margin-bottom: 16px;
-        position: relative;
-    }
-    .mode-badge {
-        position: absolute;
-        top: 14px;
-        right: 14px;
-        background: #e8f7ec;
-        color: #167a33;
-        font-size: 0.75rem;
-        font-weight: 700;
-        padding: 5px 10px;
-        border-radius: 999px;
-    }
-    .mode-title {
-        font-size: 1.2rem;
-        font-weight: 700;
-        margin-bottom: 14px;
-    }
-    .metric-row {
-        display: flex;
-        gap: 10px;
-        margin-bottom: 10px;
-    }
-    .metric-box {
-        flex: 1;
-        background: #f8f9fb;
-        border-radius: 14px;
-        padding: 12px;
-    }
-    .metric-label {
-        font-size: 0.78rem;
-        color: #666;
-        margin-bottom: 4px;
-    }
-    .metric-value {
-        font-size: 1.1rem;
-        font-weight: 700;
-    }
-    .small-note {
-        font-size: 0.88rem;
-        color: #444;
-        margin-top: 8px;
-        line-height: 1.5;
-    }
-    .summary-card {
-        background: linear-gradient(135deg, #f3f8ff, #eefcf2);
-        border-radius: 20px;
-        padding: 20px;
-        margin-bottom: 18px;
-        border: 1px solid rgba(0,0,0,0.05);
-    }
-    .summary-title {
-        font-size: 1.1rem;
-        font-weight: 800;
-        margin-bottom: 8px;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
-
-st.markdown('<div class="main-title">🚗 NZ Transport Cost + CO₂</div>', unsafe_allow_html=True)
-st.markdown(
-    '<div class="sub-title">Compare cost, travel time, CO₂, route map, and monthly savings for a trip in New Zealand.</div>',
-    unsafe_allow_html=True,
-)
+st.markdown("## 🚗 NZ Transport Cost + CO₂")
+st.caption("Compare cost, travel time, CO₂, route map, and monthly savings for a trip in New Zealand.")
 
 if not API_KEY:
     st.error("Google API key not found. Add GOOGLE_MAPS_API_KEY to Streamlit secrets.")
@@ -481,9 +338,13 @@ if compare_clicked:
 
     best = df.iloc[0]
     best_mode = best["Mode"]
+    best_icon = MODE_ICONS.get(best_mode, "🚉")
 
     car_rows = df[df["Mode"] == "Car"]
     car_row = car_rows.iloc[0] if not car_rows.empty else None
+
+    monthly_cost = best["Cost ($)"] * trips_per_month
+    monthly_co2 = best["CO₂ (kg)"] * trips_per_month
 
     if car_row is not None:
         best_monthly_co2_saved = max(0, (car_row["CO₂ (kg)"] - best["CO₂ (kg)"]) * trips_per_month)
@@ -492,36 +353,39 @@ if compare_clicked:
         best_monthly_co2_saved = 0
         best_monthly_cost_diff = 0
 
-    main_left, main_right = st.columns([1.15, 1])
+    left_col, right_col = st.columns([1.05, 1])
 
-    with main_left:
+    with left_col:
+        st.subheader("📅 Daily summary")
         st.markdown(
             f"""
-            <div class="summary-card">
-                <div class="summary-title">Best low-carbon option</div>
-                <div style="font-size:1.35rem; font-weight:800; margin-bottom:8px;">{MODE_ICONS.get(best_mode, "🚉")} {best_mode}</div>
-                <div style="line-height:1.7;">
-                    Trip: <b>{best['Time (min)']} min</b>, <b>${best['Cost ($)']:.2f}</b>, <b>{best['CO₂ (kg)']:.3f} kg CO₂</b><br>
-                    Monthly: <b>${best['Cost ($)'] * trips_per_month:.2f}</b>, <b>{best['CO₂ (kg)'] * trips_per_month:.1f} kg CO₂</b><br>
-                    CO₂ reduction vs car: <b>{best_monthly_co2_saved:.1f} kg/month</b>
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
+**Best option: {best_icon} {best_mode}**
+
+- ⏱ **Time:** {best['Time (min)']} min  
+- 💰 **Cost:** ${best['Cost ($)']:.2f} per trip  
+- 🌱 **CO₂:** {best['CO₂ (kg)']:.3f} kg per trip  
+"""
         )
 
-        st.subheader("Options")
+        st.subheader("📊 Monthly summary")
 
-        card_col1, card_col2 = st.columns(2)
-        for i, (_, row) in enumerate(df.iterrows()):
-            html = render_mode_card(row, best_mode, car_row, trips_per_month)
-            with card_col1 if i % 2 == 0 else card_col2:
-                st.markdown(html, unsafe_allow_html=True)
+        cost_text = "saving" if best_monthly_cost_diff > 0 else "extra cost"
+
+        st.markdown(
+            f"""
+- 💰 **Monthly cost:** ${monthly_cost:.2f}  
+- 🌱 **Monthly CO₂:** {monthly_co2:.1f} kg  
+
+**Compared with driving:**
+- 🌱 **CO₂ reduction:** {best_monthly_co2_saved:.1f} kg/month  
+- 💰 **Cost difference:** ${abs(best_monthly_cost_diff):.2f} ({cost_text})  
+"""
+        )
 
         st.subheader("Detailed comparison")
         st.dataframe(df, use_container_width=True, hide_index=True)
 
-    with main_right:
+    with right_col:
         st.subheader("Map")
 
         if path_rows:
