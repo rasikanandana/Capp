@@ -1,120 +1,110 @@
 import streamlit as st
 import pandas as pd
+import requests
 
-st.set_page_config(page_title="NZ Transport Cost + CO₂ Calculator", page_icon="🚉", layout="centered")
+st.set_page_config(page_title="NZ Transport CO₂ App", page_icon="🚉")
 
-# ---------- Simple constants ----------
-# These are MVP values. Later you can replace them with live route APIs and real fare data.
+API_KEY = st.secrets.get("GOOGLE_MAPS_API_KEY", "")
 
-EMISSION_FACTORS_KG_PER_KM = {
-    "Car (Hybrid Aqua)": 0.128,   # kg CO2e / km
-    "Train (Electric)": 0.0148,
-    "Bus (Average NZ)": 0.155,
+# --- NZ Emission factors ---
+EMISSION = {
+    "Car": 0.128,
+    "Transit": 0.05,   # simplified average (train/bus mix)
     "Bike": 0.0,
     "E-bike": 0.0006,
 }
 
-# Simple default speeds for rough time estimates
-SPEED_KMH = {
-    "Car (Hybrid Aqua)": 48,
-    "Train (Electric)": 38,
-    "Bus (Average NZ)": 28,
-    "Bike": 16,
-    "E-bike": 24,
-}
+# --- Cost models ---
+def cost(distance, mode):
+    if mode == "Car":
+        return round(distance * 0.25, 2)
+    if mode == "Transit":
+        return round(distance * 0.35, 2)
+    if mode == "Bike":
+        return 0
+    if mode == "E-bike":
+        return round(distance * 0.003, 2)
 
-# Simple cost model for MVP
-# You can later replace train/bus with fare tables or APIs.
-def calculate_cost(distance_km: float):
-    return {
-        "Car (Hybrid Aqua)": distance_km * 0.25,  # includes fuel + rough running cost
-        "Train (Electric)": distance_km * 0.35,
-        "Bus (Average NZ)": distance_km * 0.22,
-        "Bike": 0.0,
-        "E-bike": distance_km * 0.003,  # rough electricity-only estimate
+# --- CO2 ---
+def co2(distance, mode):
+    return round(distance * EMISSION[mode], 3)
+
+# --- Geocode ---
+def geocode(place):
+    url = "https://maps.googleapis.com/maps/api/geocode/json"
+    r = requests.get(url, params={"address": place, "key": API_KEY})
+    data = r.json()
+    if data["status"] != "OK":
+        return None
+    loc = data["results"][0]["geometry"]["location"]
+    return {"lat": loc["lat"], "lng": loc["lng"]}
+
+# --- Route ---
+def route(origin, dest, mode):
+    url = "https://routes.googleapis.com/directions/v2:computeRoutes"
+    headers = {
+        "X-Goog-Api-Key": API_KEY,
+        "X-Goog-FieldMask": "routes.distanceMeters,routes.duration"
     }
-
-def calculate_time_minutes(distance_km: float):
-    times = {}
-    for mode, speed in SPEED_KMH.items():
-        hours = distance_km / speed if speed > 0 else 0
-        times[mode] = round(hours * 60)
-    return times
-
-def calculate_emissions(distance_km: float):
-    return {
-        mode: round(distance_km * factor, 3)
-        for mode, factor in EMISSION_FACTORS_KG_PER_KM.items()
+    body = {
+        "origin": {"location": {"latLng": origin}},
+        "destination": {"location": {"latLng": dest}},
+        "travelMode": mode
     }
+    r = requests.post(url, headers=headers, json=body)
+    data = r.json()
+    if "routes" not in data:
+        return None
+    dist = data["routes"][0]["distanceMeters"] / 1000
+    dur = int(data["routes"][0]["duration"].replace("s", "")) / 60
+    return dist, round(dur)
 
-# ---------- UI ----------
-st.title("🚗 NZ Transport Cost + CO₂ Calculator")
-st.write("Compare **cost, travel time, and CO₂** for a route in New Zealand.")
+# --- UI ---
+st.title("🚗 NZ Transport Cost + CO₂")
 
-col1, col2 = st.columns(2)
+start = st.text_input("Start", "Waterloo Station, Lower Hutt")
+end = st.text_input("End", "Wellington Station")
 
-with col1:
-    start_location = st.text_input("Start", value="Waterloo")
-with col2:
-    end_location = st.text_input("End", value="Wellington")
+if st.button("Compare"):
+    if not API_KEY:
+        st.error("Add Google API key in secrets")
+        st.stop()
 
-distance_km = st.number_input(
-    "Distance (km, one way)",
-    min_value=0.1,
-    value=16.0,
-    step=0.5
-)
+    o = geocode(start)
+    d = geocode(end)
 
-return_trip = st.checkbox("Return trip", value=True)
+    if not o or not d:
+        st.error("Location error")
+        st.stop()
 
-trip_distance = distance_km * 2 if return_trip else distance_km
+    results = []
 
-if st.button("Calculate"):
-    costs = calculate_cost(trip_distance)
-    emissions = calculate_emissions(trip_distance)
-    times = calculate_time_minutes(trip_distance)
+    for label, mode in {
+        "Car": "DRIVE",
+        "Transit": "TRANSIT",
+        "Bike": "BICYCLE"
+    }.items():
 
-    df = pd.DataFrame({
-        "Mode": list(EMISSION_FACTORS_KG_PER_KM.keys()),
-        "Time (min)": [times[m] for m in EMISSION_FACTORS_KG_PER_KM.keys()],
-        "Cost (NZD)": [round(costs[m], 2) for m in EMISSION_FACTORS_KG_PER_KM.keys()],
-        "CO₂ (kg)": [emissions[m] for m in EMISSION_FACTORS_KG_PER_KM.keys()],
-    })
+        res = route(o, d, mode)
+        if res:
+            dist, time = res
+            results.append({
+                "Mode": label,
+                "Time (min)": time,
+                "Cost ($)": cost(dist, label),
+                "CO₂ (kg)": co2(dist, label)
+            })
 
-    df = df.sort_values(by=["CO₂ (kg)", "Cost (NZD)"]).reset_index(drop=True)
+            if label == "Bike":
+                results.append({
+                    "Mode": "E-bike",
+                    "Time (min)": int(time * 0.75),
+                    "Cost ($)": cost(dist, "E-bike"),
+                    "CO₂ (kg)": co2(dist, "E-bike")
+                })
 
-    st.subheader("Results")
-    st.dataframe(df, use_container_width=True, hide_index=True)
+    df = pd.DataFrame(results).sort_values("CO₂ (kg)")
+    st.dataframe(df, use_container_width=True)
 
-    # Best low-carbon option
-    best_mode = df.iloc[0]["Mode"]
-    best_co2 = df.iloc[0]["CO₂ (kg)"]
-
-    car_row = df[df["Mode"] == "Car (Hybrid Aqua)"].iloc[0]
-    savings_vs_car = round(car_row["CO₂ (kg)"] - best_co2, 3)
-
-    st.success(
-        f"Lowest-carbon option: **{best_mode}**. "
-        f"Compared with **Car (Hybrid Aqua)**, this saves about **{savings_vs_car} kg CO₂** per trip."
-    )
-
-    st.caption(
-        "This MVP uses simple NZ-based assumptions for emissions and rough cost/time models. "
-        "It is for comparison only, not exact fare or route planning."
-    )
-else:
-    st.info("Enter a route and click **Calculate**.")
-
-st.markdown("---")
-st.markdown("### Notes")
-st.markdown(
-    """
-- This is a **simple MVP** for quick comparison.
-- Distance is currently **manual**.
-- Next upgrade ideas:
-  - Google Maps API / routing API
-  - Metlink or Auckland Transport fares
-  - Better bus/train travel times
-  - Monthly savings calculator
-"""
-)
+    best = df.iloc[0]
+    st.success(f"Best option: {best['Mode']} (lowest CO₂)")
