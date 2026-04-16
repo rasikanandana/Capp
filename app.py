@@ -382,14 +382,23 @@ if compare_clicked:
         )
 
         st.subheader("📊 Monthly savings")
-       
-        st.subheader("🚲 Monthly bicycle vs driving")
-        st.markdown(
-            f"""
+
+
+# 🌳 Tree equivalent calculation
+trees = bicycle_monthly_co2_saved / 1.75 if bicycle_monthly_co2_saved > 0 else 0
+
+st.subheader("🚲 Monthly bicycle vs driving")
+st.markdown(
+    f"""
 - 🌱 **CO₂ reduction:** {bicycle_monthly_co2_saved:.1f} kg/month  
 - 💰 **Cost difference:** ${abs(bicycle_monthly_cost_diff):.2f} ({'saving' if bicycle_monthly_cost_diff > 0 else 'extra cost'})  
+
+🌳 That’s like **~{trees:.0f} trees working for a month** to absorb the same CO₂
 """
-        )
+)
+
+st.caption("Tree equivalent based on ~21 kg CO₂ absorbed per tree per year (approximate).")
+
 
         st.info("You can also add how you travel today in this app.")
 
